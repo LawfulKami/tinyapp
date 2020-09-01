@@ -48,13 +48,23 @@ app.get("/urls/:shortURL", (req, res) => {
 });
 
 app.post("/urls", (req, res) => {
-  const Id = generateRandomString();
+  const id = generateRandomString();
   if (req.body.longURL.match(/^(https:\/\/|http:\/\/)/)) {
-    urlDatabase[Id] = req.body.longURL;
+    urlDatabase[id] = req.body.longURL;
   } else {
-    urlDatabase[Id] = "http://" + req.body.longURL;
+    urlDatabase[id] = "http://" + req.body.longURL;
   }
-  res.redirect(`/urls/${Id}`);
+  res.redirect(`/urls/${id}`);
+});
+
+app.post("/urls/:shortURL", (req, res) => {
+  const id = req.params.shortURL;
+  if (req.body.longURL.match(/^(https:\/\/|http:\/\/)/)) {
+    urlDatabase[id] = req.body.longURL;
+  } else {
+    urlDatabase[id] = "http://" + req.body.longURL;
+  }
+  res.redirect(`/urls/${id}`);
 });
 
 app.post("/urls/:shortURL/delete", (req, res) => {
