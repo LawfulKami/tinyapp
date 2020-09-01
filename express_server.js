@@ -1,3 +1,4 @@
+//Utilities
 const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
@@ -8,6 +9,9 @@ app.use(bodyParser.urlencoded({extended: true}));
 app.set("view engine", "ejs");
 app.use(cookieParser());
 
+
+
+//"database" and helper function
 const generateRandomString = () => {
   let result = '';
   const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -17,12 +21,16 @@ const generateRandomString = () => {
   return result;
 };
 
-
-
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com"
 };
+
+///GET endpoints
+
+app.get("/register", (req, res) => {
+
+});
 
 app.get("/urls", (req, res) => {
   let templateVars = {
@@ -62,6 +70,8 @@ app.get("/urls/:shortURL", (req, res) => {
   res.render("urls_show", templateVars);
 });
 
+///POST endpoints
+
 app.post("/urls", (req, res) => {
   let templateVars = { username: req.cookies.username };
   const id = generateRandomString();
@@ -96,6 +106,9 @@ app.post("/urls/:shortURL/delete", (req, res) => {
   delete urlDatabase[req.params.shortURL];
   res.redirect("/urls");
 });
+
+
+/// Server Start
 
 app.listen(PORT, () => {
   console.log(`Tinyapp listenning on port ${PORT}!`);
