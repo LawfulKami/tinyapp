@@ -9,9 +9,8 @@ app.set("view engine", "ejs");
 const generateRandomString = () => {
   let result = '';
   const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const charactersLength = characters.length;
   for (let i = 0; i < 6; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    result += characters.charAt(Math.floor(Math.random() * 62));
   }
   return result;
 };
@@ -29,7 +28,11 @@ app.get("/urls", (req, res) => {
 
 app.post("/urls", (req, res) => {
   const Id = generateRandomString();
-  urlDatabase[Id] = req.body.longURL;
+  if (req.body.longURL.match(/^(https:\/\/|http:\/\/)/)) {
+    urlDatabase[Id] = req.body.longURL;
+  } else {
+    urlDatabase[Id] = "http://" + req.body.longURL;
+  }
   res.redirect(`/urls/${Id}`);
 });
 
@@ -39,7 +42,12 @@ app.get("/urls/new", (req, res) => {
 
 app.get("/u/:shortURL", (req, res) => {
   const longURL = urlDatabase[req.params.shortURL];
-  res.redirect(longURL);
+  const shortURL = req.params.shortURL;
+  if (Object.keys(urlDatabase).includes(shortURL)) {
+    res.redirect(longURL);
+  } else {
+    res.redirect("urls_index", { urls: urlDatabase });
+  }
 });
 
 app.get("/urls/:shortURL", (req, res) => {
@@ -48,5 +56,5 @@ app.get("/urls/:shortURL", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Example app listening on port ${PORT}!`);
+  console.log(`Tinyapp listenning on port ${PORT}!`);
 });
