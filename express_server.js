@@ -21,6 +21,16 @@ const generateRandomString = () => {
   return result;
 };
 
+const checkForEmail = (email) => {
+  for (const user in users) {
+    const existingEmail = users[user].email;
+    if (existingEmail === email) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com"
@@ -44,6 +54,11 @@ const users = {
 app.get("/register", (req, res) => {
   let templateVars = { user : users[req.cookies.user_id] };
   res.render("registration", templateVars);
+});
+
+app.get("/login", (req, res) => {
+  let templateVars = { user : users[req.cookies.user_id] };
+  res.render("login", templateVars);
 });
 
 app.get("/urls", (req, res) => {
@@ -98,19 +113,38 @@ app.post("/urls", (req, res) => {
 });
 
 app.post("/register", (req,res) => {
+  if (checkForEmail(req.body.email) || !req.body.email) {
+    res.status(400).end();
+  }
   const newId = generateRandomString();
   users[newId] = req.body;
   users[newId].id = newId;
   res.cookie("user_id", users[newId].id).redirect("/urls");
 });
 
-app.post("/login", (req, res) =>{
-  const username = req.body.username;
-  res.cookie("username", username).redirect("/urls");
+app.post("/login", (req, res) => {
+  const password = req.body.password;
+  const email = req.body.email;
+  let id = "";
+  for (const user in users) {
+    if (users[user].email === email) {
+      id = users[user].id;
+    }
+  }
+  
+  if (!users[id]) {
+    return res.status(403).send("No such user");
+
+  } else if (users[id].password === password) {
+    res.cookie("user_id", id).redirect("/urls");
+
+  } else {
+    res.status(403).send("Authentification failed");
+  }
 });
 
 app.post("/logout", (req, res) =>{
-  res.clearCookie("username").redirect("/urls");
+  res.clearCookie("user_id").redirect("/urls");
 });
 
 app.post("/urls/:shortURL", (req, res) => {
@@ -132,4 +166,6 @@ app.post("/urls/:shortURL/delete", (req, res) => {
 /// Server Start
 
 app.listen(PORT, () => {
+  console.log(`TinyApp is listening on ${PORT}`);
 });
+
