@@ -5,6 +5,8 @@ const PORT = 8080; // default port 8080
 const bodyParser = require("body-parser");
 const cookieSession = require('cookie-session');
 const bcrypt = require("bcrypt");
+const h = require("./helper");
+const { checkOwnership } = require("./helper");
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.set("view engine", "ejs");
@@ -14,38 +16,9 @@ app.use(cookieSession({
 }));
 
 
-
-//"database" and helper function
-const generateRandomString = () => {
-  let result = '';
-  const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  for (let i = 0; i < 6; i++) {
-    result += characters.charAt(Math.floor(Math.random() * 62));
-  }
-  return result;
-};
-
-const checkForEmail = (email) => {
-  for (const user in users) {
-    const existingEmail = users[user].email;
-    if (existingEmail === email) {
-      return true;
-    }
-  }
-  return false;
-};
-
-
-
-const urlsForUser = (id) => {
-  const filteredData = {};
-  for (const url in urlDatabase) {
-    if (urlDatabase[url].userId === id) {
-      filteredData[url] = urlDatabase[url];
-    }
-  }
-  return filteredData;
-};
+//////////////
+//"Database"//
+//////////////
 
 const urlDatabase = {
   "b2xVn2": { longURL :"http://www.lighthouselabs.ca", userId: "userRandomID" },
@@ -64,9 +37,13 @@ const users = {
     password: bcrypt.hashSync("dishwasher-funk", 10)
   }
 };
-///GET endpoints
+
+/////////////////
+//GET endpoints//
+/////////////////
+
 app.get("/urls", (req, res) => {
-  const userURLS = urlsForUser(req.session.user_id);
+  const userURLS = h.urlsForUser(urlDatabase, req.session.user_id);
   let templateVars = {
     urls: userURLS,
     user : users[req.session.user_id]
@@ -100,17 +77,15 @@ app.get("/u/:shortURL", (req, res) => {
   };
   const longURL = urlDatabase[req.params.shortURL].longURL;
   const shortURL = req.params.shortURL;
-  if (Object.keys(urlDatabase).includes(shortURL)) {
+  if (h.validateShortUrl(urlDatabase, shortURL)) {
     res.redirect(longURL);
   } else {
     res.redirect("/urls", templateVars);
   }
 });
 
-//tested
 app.get("/urls/:shortURL", (req, res) => {
-  const userUrls = urlsForUser(req.session.user_id);
-  if (!Object.keys(userUrls).includes(req.params.shortURL)) {
+  if (!checkOwnership(urlDatabase, req)) {
     return res.redirect("/urls");
   }
   let templateVars = {
@@ -121,36 +96,27 @@ app.get("/urls/:shortURL", (req, res) => {
   res.render("urls_show", templateVars);
 });
 
-///POST endpoints
+//////////////////
+//POST endpoints//
+//////////////////
 
 app.post("/urls", (req, res) => {
-  const userUrls = urlsForUser(req.session.user_id);
-  if (Object.keys(userUrls).includes(req.body.shortURL)) {
+  if (h.checkUserUrls(urlDatabase, req)) {
     urlDatabase[req.body.shortURL].longURL = req.body.longURL;
     res.redirect(`/urls/${req.body.longURL}`);
   } else {
-    const id = generateRandomString();
-    urlDatabase[id] = {};
-    if (req.body.longURL.match(/^(https:\/\/|http:\/\/)/)) {
-      urlDatabase[id].longURL = req.body.longURL;
-      urlDatabase[id].userId = req.session.user_id;
-    } else {
-      urlDatabase[id].longURL = "http://" + req.body.longURL;
-      urlDatabase[id].userId = req.session.user_id;
-    }
-    res.redirect(`/urls/${id}`);
+    const newId = h.generateRandomString();
+    h.createNewUrl(urlDatabase, newId, req);
+    res.redirect(`/urls/${newId}`);
   }
 });
 
 app.post("/register", (req,res) => {
-  if (checkForEmail(req.body.email) || !req.body.email) {
+  if (h.checkForEmail(users, req.body.email) || !req.body.email) {
     res.status(400).end();
   }
-  const newId = generateRandomString();
-  users[newId] = {};
-  users[newId].password = bcrypt.hashSync(req.body.password, 10);
-  users[newId].email = req.body.email;
-  users[newId].id = newId;
+  const newId = h.generateRandomString();
+  h.createNewUser(users, newId, req);
   // eslint-disable-next-line camelcase
   req.session.user_id = users[newId].id;
   res.redirect("/urls");
@@ -159,15 +125,9 @@ app.post("/register", (req,res) => {
 app.post("/login", (req, res) => {
   const password = req.body.password;
   const email = req.body.email;
-  let id = "";
-  for (const user in users) {
-    if (users[user].email === email) {
-      id = users[user].id;
-    }
-  }
-  
+  let id = h.getUserbyEmail(users, email);
   if (!users[id]) {
-    return res.status(403).send("No such user");
+    return res.status(403).send("No such user exists");
 
   } else if (bcrypt.compareSync(password, users[id].password)) {
     // eslint-disable-next-line camelcase
@@ -186,21 +146,16 @@ app.post("/logout", (req, res) =>{
 
 app.post("/urls/:shortURL", (req, res) => {
   const id = req.params.shortURL;
-  if (req.session.user_is === urlDatabase[req.params.shortURL].userId) {
-    if (req.body.longURL.match(/^(https:\/\/|http:\/\/)/)) {
-      urlDatabase[id] = req.body.longURL;
-    } else {
-      urlDatabase[id] = "http://" + req.body.longURL;
-    }
+  if (h.checkOwnership(urlDatabase, req)) {
+    urlDatabase[id] = h.formatUrl(req.body.longURL);
     res.redirect(`/urls/${id}`);
   } else {
-    res.redirect("/urls");
+    res.redirect("/urls"); //Url does not belong to User.
   }
 });
 
-//tested
 app.post("/urls/:shortURL/delete", (req, res) => {
-  if (req.session.user_id === urlDatabase[req.params.shortURL].userId) {
+  if (h.checkOwnership(urlDatabase, req)) {
     delete urlDatabase[req.params.shortURL];
   }
   res.redirect("/urls");
