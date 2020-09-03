@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 //Utilities
 const express = require("express");
 const app = express();
@@ -5,9 +6,11 @@ const PORT = 8080; // default port 8080
 const bodyParser = require("body-parser");
 const cookieSession = require('cookie-session');
 const bcrypt = require("bcrypt");
-const h = require("./helper");
-const { checkOwnership } = require("./helper");
+const h = require("./helpers");
+const methodOverride = require("method-override");
 
+
+app.use(methodOverride('_method'));
 app.use(bodyParser.urlencoded({extended: true}));
 app.set("view engine", "ejs");
 app.use(cookieSession({
@@ -43,40 +46,45 @@ const users = {
 /////////////////
 
 app.get("/urls", (req, res) => {
-  const userURLS = h.urlsForUser(urlDatabase, req.session.user_id);
+  const { user_id } = req.session;
+  const userURLS = h.urlsForUser(urlDatabase, user_id);
   let templateVars = {
     urls: userURLS,
-    user : users[req.session.user_id]
+    user : users[user_id]
   };
   res.render("urls_index", templateVars);
 });
 
 app.get("/register", (req, res) => {
-  let templateVars = { user : users[req.session.user_id] };
+  const { user_id } = req.session;
+  let templateVars = { user : users[user_id] };
   res.render("registration", templateVars);
 });
 
 app.get("/login", (req, res) => {
-  let templateVars = { user : users[req.session.user_id] };
+  const { user_id } = req.session;
+  let templateVars = { user : users[user_id] };
   res.render("login", templateVars);
 });
 
 
 app.get("/urls/new", (req, res) => {
-  if (!req.session.user_id) {
+  const { user_id } = req.session;
+  if (!user_id) {
     res.redirect("/urls");
   }
-  let templateVars = { user : users[req.session.user_id] };
+  let templateVars = { user : users[user_id] };
   res.render("urls_new", templateVars);
 });
 
 app.get("/u/:shortURL", (req, res) => {
+  const { user_id } = req.session;
+  const { shortURL } = req.body;
   let templateVars = {
-    user : users[req.session.user_id],
+    user : users[user_id],
     urls: urlDatabase,
   };
-  const longURL = urlDatabase[req.params.shortURL].longURL;
-  const shortURL = req.params.shortURL;
+  const longURL = urlDatabase[shortURL].longURL;
   if (h.validateShortUrl(urlDatabase, shortURL)) {
     res.redirect(longURL);
   } else {
@@ -85,13 +93,15 @@ app.get("/u/:shortURL", (req, res) => {
 });
 
 app.get("/urls/:shortURL", (req, res) => {
-  if (!checkOwnership(urlDatabase, req)) {
+  const { user_id } = req.session;
+  const { shortURL } = req.params;
+  if (!h.checkOwnership(urlDatabase, req)) {
     return res.redirect("/urls");
   }
   let templateVars = {
-    shortURL: req.params.shortURL,
-    longURL: urlDatabase[req.params.shortURL].longURL,
-    user : users[req.session.user_id]
+    shortURL,
+    longURL: urlDatabase[shortURL].longURL,
+    user : users[user_id]
   };
   res.render("urls_show", templateVars);
 });
@@ -101,36 +111,43 @@ app.get("/urls/:shortURL", (req, res) => {
 //////////////////
 
 app.post("/urls", (req, res) => {
-  if (h.checkUserUrls(urlDatabase, req)) {
-    urlDatabase[req.body.shortURL].longURL = req.body.longURL;
-    res.redirect(`/urls/${req.body.longURL}`);
-  } else {
-    const newId = h.generateRandomString();
-    h.createNewUrl(urlDatabase, newId, req);
-    res.redirect(`/urls/${newId}`);
-  }
+  const newId = h.generateRandomString();
+  h.createNewUrl(urlDatabase, newId, req);
+  res.redirect(`/urls/${newId}`);
 });
 
-app.post("/register", (req,res) => {
-  if (h.checkForEmail(users, req.body.email) || !req.body.email) {
-    res.status(400).end();
+app.put("/urls", (req, res) => {
+  const { shortURL } = req.body;
+  const { longURL } = req.body;
+  if (h.checkUserUrls(urlDatabase, req)) {
+    urlDatabase[shortURL].longURL = longURL;
+    return res.redirect(`/urls/${shortURL}`);
+  }
+  const newId = h.generateRandomString();
+  h.createNewUrl(urlDatabase, newId, req);
+  res.redirect(`/urls/${newId}`);
+});
+
+app.post("/register", (req, res) => {
+  const { email } = req.body;
+  console.log(email);
+  if (h.checkForEmail(users, email) || !email) {
+    return res.status(400).end();
   }
   const newId = h.generateRandomString();
   h.createNewUser(users, newId, req);
-  // eslint-disable-next-line camelcase
   req.session.user_id = users[newId].id;
   res.redirect("/urls");
 });
 
 app.post("/login", (req, res) => {
-  const password = req.body.password;
-  const email = req.body.email;
-  let id = h.getUserbyEmail(users, email);
+  const { password } = req.body;
+  const { email } = req.body;
+  let id = h.getUserByEmail(users, email);
   if (!users[id]) {
     return res.status(403).send("No such user exists");
 
   } else if (bcrypt.compareSync(password, users[id].password)) {
-    // eslint-disable-next-line camelcase
     req.session.user_id = id;
     res.redirect("/urls");
 
@@ -139,24 +156,26 @@ app.post("/login", (req, res) => {
   }
 });
 
-app.post("/logout", (req, res) =>{
+app.post("/logout", (req, res) => {
   req.session = null;
   res.redirect("/urls");
 });
 
 app.post("/urls/:shortURL", (req, res) => {
-  const id = req.params.shortURL;
+  const { shortURL } = req.params;
+  const { longURL } = req.body;
   if (h.checkOwnership(urlDatabase, req)) {
-    urlDatabase[id] = h.formatUrl(req.body.longURL);
-    res.redirect(`/urls/${id}`);
+    urlDatabase[shortURL].longURL = h.formatUrl(longURL);
+    res.redirect(`/urls/${shortURL}`);
   } else {
     res.redirect("/urls"); //Url does not belong to User.
   }
 });
 
-app.post("/urls/:shortURL/delete", (req, res) => {
+app.delete("/urls/:shortURL", (req, res) => {
+  const { shortURL } = req.params;
   if (h.checkOwnership(urlDatabase, req)) {
-    delete urlDatabase[req.params.shortURL];
+    delete urlDatabase[shortURL];
   }
   res.redirect("/urls");
 });

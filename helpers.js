@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 const bcrypt = require("bcrypt");
 
 const generateRandomString = () => {
@@ -38,7 +39,6 @@ const createNewUrl = (database, id, req) => {
     database[id].longURL = "http://" + req.body.longURL;
     database[id].userId = req.session.user_id;
   }
-  return id;
 };
 
 const checkUserUrls = (database, req) => {
@@ -53,7 +53,7 @@ const createNewUser = (users, id, req) => {
   users[id].id = id;
 };
 
-const getUserbyEmail = (users, email) => {
+const getUserByEmail = (users, email) => {
   for (const user in users) {
     if (users[user].email === email) {
       return users[user].id;
@@ -69,8 +69,10 @@ const formatUrl = (url) => {
   return "http://" + url;
 };
 
-const checkOwnership = (database, req) =>{
-  return req.session.user_id === database[req.params.shortURL].userId;
+const checkOwnership = (database, req) => {
+  const { user_id } = req.session;
+  const { shortURL} = req.params;
+  return user_id === database[shortURL].userId;
 };
 
 const validateShortUrl = (database, shortUrl) => {
@@ -84,7 +86,7 @@ module.exports = {
   createNewUrl,
   checkUserUrls,
   createNewUser,
-  getUserbyEmail,
+  getUserByEmail,
   formatUrl,
   checkOwnership,
   validateShortUrl
