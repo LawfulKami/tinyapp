@@ -19,6 +19,7 @@
         <div class="form-group mb-2">
           <h6 class="card-header" style="font-size:2em;">Edit</h6>
           <label for="longURL">New URL:</label>
+          <input type="hidden" name="shortURL" value="<%= shortURL %>">
           <input class="form-group mb-2" type="text" name="longURL" placeholder="http://" style="width: 300px; margin: 1em;">
           <button type="submit" class="btn btn-primary">Submit</button>
         </div>
