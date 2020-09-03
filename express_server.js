@@ -5,11 +5,12 @@ const app = express();
 const PORT = 8080; // default port 8080
 const bodyParser = require("body-parser");
 const cookieSession = require('cookie-session');
+const cookieParser = require('cookie-parser');
 const bcrypt = require("bcrypt");
 const h = require("./helpers");
 const methodOverride = require("method-override");
 
-
+app.use(cookieParser());
 app.use(methodOverride('_method'));
 app.use(bodyParser.urlencoded({extended: true}));
 app.set("view engine", "ejs");
@@ -24,8 +25,8 @@ app.use(cookieSession({
 //////////////
 
 const urlDatabase = {
-  "b2xVn2": { longURL :"http://www.lighthouselabs.ca", userId: "userRandomID" },
-  "9sm5xK": { longURL :"http://www.google.com", userId: "user2RandomID" }
+  "b2xVn2": { longURL :"http://www.lighthouselabs.ca", userId: "userRandomID", viewCount: 0, uniqueVisitors : 0, visits: []},
+  "9sm5xK": { longURL :"http://www.google.com", userId: "user2RandomID", viewCount: 0, uniqueVisitors: 0, visits: [] }
 };
 
 const users = {
@@ -77,20 +78,6 @@ app.get("/urls/new", (req, res) => {
   res.render("urls_new", templateVars);
 });
 
-app.get("/u/:shortURL", (req, res) => {
-  const { user_id } = req.session;
-  const { shortURL } = req.body;
-  let templateVars = {
-    user : users[user_id],
-    urls: urlDatabase,
-  };
-  const longURL = urlDatabase[shortURL].longURL;
-  if (h.validateShortUrl(urlDatabase, shortURL)) {
-    res.redirect(longURL);
-  } else {
-    res.redirect("/urls", templateVars);
-  }
-});
 
 app.get("/urls/:shortURL", (req, res) => {
   const { user_id } = req.session;
@@ -101,9 +88,39 @@ app.get("/urls/:shortURL", (req, res) => {
   let templateVars = {
     shortURL,
     longURL: urlDatabase[shortURL].longURL,
-    user : users[user_id]
+    viewCount: urlDatabase[shortURL].viewCount,
+    uniqueVisitors: urlDatabase[shortURL].uniqueVisitors,
+    visits: urlDatabase[shortURL].visits,
+    user: users[user_id]
   };
   res.render("urls_show", templateVars);
+});
+
+app.get("/u/:shortURL", (req, res) => {
+  const { user_id } = req.session;
+  const { shortURL } = req.params;
+  const templateVars = {
+    user : users[user_id],
+    urls: urlDatabase,
+  };
+  const { longURL } = urlDatabase[shortURL];
+  if (h.validateShortUrl(urlDatabase, shortURL)) {
+    let visitor_id = req.cookies.visitor_id;
+    if (visitor_id) {
+      urlDatabase[shortURL].viewCount++;
+      urlDatabase[shortURL].visits.push(h.newVisit(visitor_id));
+      return res.redirect(longURL);
+    } else {
+      urlDatabase[shortURL].viewCount++;
+      urlDatabase[shortURL].uniqueVisitors++;
+      visitor_id = h.generateRandomString();
+      res.cookie("visitor_id", visitor_id).redirect(longURL);
+      urlDatabase[shortURL].visits.push(h.newVisit(visitor_id));
+    }
+    console.log(urlDatabase[shortURL].visits);
+  } else {
+    res.redirect("/urls", templateVars);
+  }
 });
 
 //////////////////
@@ -130,7 +147,6 @@ app.put("/urls", (req, res) => {
 
 app.post("/register", (req, res) => {
   const { email } = req.body;
-  console.log(email);
   if (h.checkForEmail(users, email) || !email) {
     return res.status(400).end();
   }
@@ -146,11 +162,11 @@ app.post("/login", (req, res) => {
   let id = h.getUserByEmail(users, email);
   if (!users[id]) {
     return res.status(403).send("No such user exists");
-
+    
   } else if (bcrypt.compareSync(password, users[id].password)) {
     req.session.user_id = id;
     res.redirect("/urls");
-
+    
   } else {
     res.status(403).send("Authentification failed");
   }

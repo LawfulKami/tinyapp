@@ -14,6 +14,12 @@
         <h5 class="card-title">TinyURL for: <%= longURL %></h5>
         <p class="card-text">Short URL: <a href="/u/<%= shortURL %>"><%= shortURL %></a></p>
       </div>
+      <div>
+      <h1 class="card-header">Total Views:</h1>
+      <h2 class="card-body"><%= viewCount %></h2>      
+      <h1 class="card-header">Unique Visitors:</h1>
+      <h2 class="card-body"><%= uniqueVisitors %></h2>
+    </div>
       <div class="card-footer text-muted"></div>
       <form class="form-group mb-2" action="/urls?_method=PUT" method="POST">
         <div class="form-group mb-2">
@@ -25,6 +31,22 @@
         </div>
       </form>
   </div>
+  <table class="table" style="justify-self: center;">
+    <thead>
+      <tr>
+        <th scope="col">Visitor</th>
+        <th scope="col">Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for(let visit of visits) { %>
+        <tr>
+          <td><a><%= visit.visitor %></td>
+          <td><%= visit.time %></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
   <!-- Bootstrap JS -->
   <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>

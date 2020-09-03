@@ -35,9 +35,15 @@ const createNewUrl = (database, id, req) => {
   if (req.body.longURL.match(/^(https:\/\/|http:\/\/)/)) {
     database[id].longURL = req.body.longURL;
     database[id].userId = req.session.user_id;
+    database[id].viewCount = 0;
+    database[id].uniqueVisitors = 0;
+    database[id].visits =  [];
   } else {
     database[id].longURL = "http://" + req.body.longURL;
     database[id].userId = req.session.user_id;
+    database[id].viewCount = 0;
+    database[id].uniqueVisitors = 0;
+    database[id].visits =  [];
   }
 };
 
@@ -79,6 +85,13 @@ const validateShortUrl = (database, shortUrl) => {
   return Object.keys(database).includes(shortUrl);
 };
 
+const newVisit = (visitor_id) => {
+  const visit = {};
+  visit.visitor = visitor_id;
+  visit.time = new Date();
+  return visit;
+};
+
 module.exports = {
   generateRandomString,
   checkForEmail,
@@ -89,5 +102,6 @@ module.exports = {
   getUserByEmail,
   formatUrl,
   checkOwnership,
-  validateShortUrl
+  validateShortUrl,
+  newVisit
 };
