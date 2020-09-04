@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 const bcrypt = require("bcrypt");
 
 const generateRandomString = () => {

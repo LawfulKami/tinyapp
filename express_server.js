@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 //Utilities
 const express = require("express");
 const app = express();
