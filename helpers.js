@@ -38,12 +38,14 @@ const createNewUrl = (database, id, req) => {
     database[id].viewCount = 0;
     database[id].uniqueVisitors = 0;
     database[id].visits =  [];
+    database[id].dateCreated = new Date();
   } else {
     database[id].longURL = "http://" + req.body.longURL;
     database[id].userId = req.session.user_id;
     database[id].viewCount = 0;
     database[id].uniqueVisitors = 0;
     database[id].visits =  [];
+    database[id].dateCreated = new Date();
   }
 };
 
@@ -78,6 +80,9 @@ const formatUrl = (url) => {
 const checkOwnership = (database, req) => {
   const { user_id } = req.session;
   const { shortURL} = req.params;
+  if (!database[shortURL]) {
+    return false;
+  }
   return user_id === database[shortURL].userId;
 };
 

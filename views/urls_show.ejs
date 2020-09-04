@@ -13,6 +13,7 @@
       <div class="card-body">
         <h5 class="card-title">TinyURL for: <%= longURL %></h5>
         <p class="card-text">Short URL: <a href="/u/<%= shortURL %>"><%= shortURL %></a></p>
+        <pclass="card-text">Created : <br><%= date.toLocaleString("en-US") %></p>
       </div>
       <div>
       <h1 class="card-header">Total Views:</h1>
@@ -31,7 +32,7 @@
         </div>
       </form>
   </div>
-  <table class="table" style="justify-self: center;">
+  <table class="table">
     <thead>
       <tr>
         <th scope="col">Visitor</th>

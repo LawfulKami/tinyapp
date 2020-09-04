@@ -9,6 +9,7 @@ const cookieParser = require('cookie-parser');
 const bcrypt = require("bcrypt");
 const h = require("./helpers");
 const methodOverride = require("method-override");
+const { validateShortUrl } = require("./helpers");
 
 app.use(cookieParser());
 app.use(methodOverride('_method'));
@@ -25,8 +26,8 @@ app.use(cookieSession({
 //////////////
 
 const urlDatabase = {
-  "b2xVn2": { longURL :"http://www.lighthouselabs.ca", userId: "userRandomID", viewCount: 0, uniqueVisitors : 0, visits: []},
-  "9sm5xK": { longURL :"http://www.google.com", userId: "user2RandomID", viewCount: 0, uniqueVisitors: 0, visits: [] }
+  "b2xVn2": { longURL :"http://www.lighthouselabs.ca", userId: "userRandomID", viewCount: 0, uniqueVisitors : 0, visits: [], dateCreated: new Date()},
+  "9sm5xK": { longURL :"http://www.google.com", userId: "user2RandomID", viewCount: 0, uniqueVisitors: 0, visits: [], dateCreated: new Date() }
 };
 
 const users = {
@@ -46,6 +47,14 @@ const users = {
 //GET endpoints//
 /////////////////
 
+app.get("/", (req, res) => {
+  const { user_id } = req.session;
+  if (user_id) {
+    return res.redirect("/urls");
+  }
+  res.redirect("/login");
+});
+
 app.get("/urls", (req, res) => {
   const { user_id } = req.session;
   const userURLS = h.urlsForUser(urlDatabase, user_id);
@@ -53,26 +62,37 @@ app.get("/urls", (req, res) => {
     urls: userURLS,
     user : users[user_id]
   };
+  if (!user_id) {
+    return res.status(400).render("error_messages/not_logged", templateVars);
+  }
   res.render("urls_index", templateVars);
 });
 
 app.get("/register", (req, res) => {
   const { user_id } = req.session;
   let templateVars = { user : users[user_id] };
-  res.render("registration", templateVars);
+  if (!user_id) {
+    res.render("registration", templateVars);
+  } else {
+    res.redirect("/urls");
+  }
 });
 
 app.get("/login", (req, res) => {
   const { user_id } = req.session;
   let templateVars = { user : users[user_id] };
-  res.render("login", templateVars);
+  if (!user_id) {
+    res.render("login", templateVars);
+  } else {
+    res.redirect("/urls");
+  }
 });
 
 
 app.get("/urls/new", (req, res) => {
   const { user_id } = req.session;
   if (!user_id) {
-    res.redirect("/urls");
+    res.redirect("/login");
   }
   let templateVars = { user : users[user_id] };
   res.render("urls_new", templateVars);
@@ -83,7 +103,14 @@ app.get("/urls/:shortURL", (req, res) => {
   const { user_id } = req.session;
   const { shortURL } = req.params;
   if (!h.checkOwnership(urlDatabase, req)) {
-    return res.redirect("/urls");
+    const user = { user: users[user_id] };
+    if (!validateShortUrl(urlDatabase, shortURL)) {
+      return res.status(404).render("error_messages/invalid_url", user);
+    } else if (!user_id) {
+      return res.status(400).render("error_messages/not_logged", user);
+    } else {
+      return res.status(403).render("error_messages/url_not_owned", user);
+    }
   }
   let templateVars = {
     shortURL,
@@ -91,6 +118,7 @@ app.get("/urls/:shortURL", (req, res) => {
     viewCount: urlDatabase[shortURL].viewCount,
     uniqueVisitors: urlDatabase[shortURL].uniqueVisitors,
     visits: urlDatabase[shortURL].visits,
+    date: urlDatabase[shortURL].dateCreated,
     user: users[user_id]
   };
   res.render("urls_show", templateVars);
@@ -103,8 +131,8 @@ app.get("/u/:shortURL", (req, res) => {
     user : users[user_id],
     urls: urlDatabase,
   };
-  const { longURL } = urlDatabase[shortURL];
   if (h.validateShortUrl(urlDatabase, shortURL)) {
+    const { longURL } = urlDatabase[shortURL];
     let visitor_id = req.cookies.visitor_id;
     if (visitor_id) {
       urlDatabase[shortURL].viewCount++;
@@ -117,20 +145,25 @@ app.get("/u/:shortURL", (req, res) => {
       res.cookie("visitor_id", visitor_id).redirect(longURL);
       urlDatabase[shortURL].visits.push(h.newVisit(visitor_id));
     }
-    console.log(urlDatabase[shortURL].visits);
   } else {
-    res.redirect("/urls", templateVars);
+    res.status(404).render("error_messages/invalid_url", templateVars);
   }
 });
 
-//////////////////
-//POST endpoints//
-//////////////////
+/////////////////////////////
+//POST/PUT/DELETE endpoints//
+/////////////////////////////
 
 app.post("/urls", (req, res) => {
-  const newId = h.generateRandomString();
-  h.createNewUrl(urlDatabase, newId, req);
-  res.redirect(`/urls/${newId}`);
+  const { user_id } = req.session;
+  const templateVars = { user : users[user_id],};
+  if (user_id) {
+    const newId = h.generateRandomString();
+    h.createNewUrl(urlDatabase, newId, req);
+    res.redirect(`/urls/${newId}`);
+  } else {
+    res.status(403).render("error_messages/not_logged", templateVars);
+  }
 });
 
 app.put("/urls", (req, res) => {
@@ -138,17 +171,22 @@ app.put("/urls", (req, res) => {
   const { longURL } = req.body;
   if (h.checkUserUrls(urlDatabase, req)) {
     urlDatabase[shortURL].longURL = longURL;
-    return res.redirect(`/urls/${shortURL}`);
+    return res.redirect(`/urls/`);
   }
   const newId = h.generateRandomString();
   h.createNewUrl(urlDatabase, newId, req);
-  res.redirect(`/urls/${newId}`);
+  res.redirect(`/urls`);
 });
 
 app.post("/register", (req, res) => {
-  const { email } = req.body;
-  if (h.checkForEmail(users, email) || !email) {
-    return res.status(400).end();
+  const { email, password } = req.body;
+  const { user_id } = req.session;
+  const templateVars = { user : users[user_id],};
+  if (h.checkForEmail(users, email)) {
+    return res.status(400).render("error_messages/duplicate_user", templateVars);
+  }
+  if (!email || !password) {
+    return res.status(400).render("error_messages/incomplete_form", templateVars);
   }
   const newId = h.generateRandomString();
   h.createNewUser(users, newId, req);
@@ -159,17 +197,17 @@ app.post("/register", (req, res) => {
 app.post("/login", (req, res) => {
   const { password } = req.body;
   const { email } = req.body;
+  const { user_id } = req.session;
+  const templateVars = { user : users[user_id]};
   let id = h.getUserByEmail(users, email);
-  if (!users[id]) {
-    return res.status(403).send("No such user exists");
-    
-  } else if (bcrypt.compareSync(password, users[id].password)) {
-    req.session.user_id = id;
-    res.redirect("/urls");
-    
-  } else {
-    res.status(403).send("Authentification failed");
+  if (!id) {
+    return res.status(401).render("error_messages/failed_auth", templateVars);
   }
+  if (bcrypt.compareSync(password, users[id].password)) {
+    req.session.user_id = id;
+    return res.redirect("/urls");
+  }
+  res.status(401).render("error_messages/failed_auth", templateVars);
 });
 
 app.post("/logout", (req, res) => {
@@ -180,20 +218,28 @@ app.post("/logout", (req, res) => {
 app.post("/urls/:shortURL", (req, res) => {
   const { shortURL } = req.params;
   const { longURL } = req.body;
+  const { user_id } = req.session;
+  const templateVars = { user : users[user_id],};
   if (h.checkOwnership(urlDatabase, req)) {
     urlDatabase[shortURL].longURL = h.formatUrl(longURL);
     res.redirect(`/urls/${shortURL}`);
   } else {
-    res.redirect("/urls"); //Url does not belong to User.
+    res.status(403).render("error_messages/url_not_owned", templateVars);
   }
 });
 
 app.delete("/urls/:shortURL", (req, res) => {
   const { shortURL } = req.params;
-  if (h.checkOwnership(urlDatabase, req)) {
-    delete urlDatabase[shortURL];
+  const { user_id } = req.session;
+  const templateVars = { user : users[user_id],};
+  if (user_id) {
+    if (h.checkOwnership(urlDatabase, req)) {
+      delete urlDatabase[shortURL];
+    }
+    res.status(403).render("error_messages/url_not_owned", templateVars);
+  } else {
+    res.status(403).render("error_messages/not_logged", templateVars);
   }
-  res.redirect("/urls");
 });
 
 
